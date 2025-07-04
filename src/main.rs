@@ -55,7 +55,7 @@ impl ConnectionStatus {
 
 pub fn ping_host(host: &str) -> Option<Duration> {
     let start = Instant::now();
-    
+
     // Simple ping using system ping command
     let output = Command::new("ping")
         .arg("-c")
@@ -84,7 +84,7 @@ pub fn classify_latency(latency: Option<Duration>) -> ConnectionStatus {
 
 async fn monitor_server(name: String, host: String, sender: channel::Sender<ServerStatus>) {
     let mut history = VecDeque::new();
-    
+
     loop {
         let latency = ping_host(&host);
         let status = classify_latency(latency);
@@ -92,7 +92,7 @@ async fn monitor_server(name: String, host: String, sender: channel::Sender<Serv
 
         // Add to history
         history.push_back((now, status.clone()));
-        
+
         // Keep only last N minutes of history
         let cutoff = now - Duration::from_secs(GRAPH_HISTORY_MINUTES as u64 * 60);
         while let Some((timestamp, _)) = history.front() {
@@ -127,9 +127,9 @@ fn draw_graph(history: &VecDeque<(Instant, ConnectionStatus)>) -> String {
     let now = Instant::now();
     let start_time = now - Duration::from_secs(GRAPH_HISTORY_MINUTES as u64 * 60);
     let time_per_char = Duration::from_secs(GRAPH_HISTORY_MINUTES as u64 * 60) / GRAPH_WIDTH as u32;
-    
+
     let mut graph = vec![' '; GRAPH_WIDTH];
-    
+
     for (timestamp, status) in history {
         if *timestamp >= start_time {
             let elapsed = timestamp.duration_since(start_time);
@@ -144,7 +144,7 @@ fn draw_graph(history: &VecDeque<(Instant, ConnectionStatus)>) -> String {
             }
         }
     }
-    
+
     graph.into_iter().collect()
 }
 
@@ -161,14 +161,14 @@ fn draw_ui(servers: &[ServerStatus]) -> io::Result<()> {
     for (i, server) in servers.iter().enumerate() {
         let row = (i * 3 + 3) as u16;
         execute!(io::stdout(), cursor::MoveTo(0, row))?;
-        
+
         // Server name and current status
         execute!(io::stdout(), SetForegroundColor(server.status.color()))?;
         print!("{} ", server.status.symbol());
         execute!(io::stdout(), ResetColor)?;
-        
+
         print!("{:<20}", server.name);
-        
+
         match server.latency {
             Some(lat) => {
                 execute!(io::stdout(), SetForegroundColor(server.status.color()))?;
@@ -181,20 +181,20 @@ fn draw_ui(servers: &[ServerStatus]) -> io::Result<()> {
                 execute!(io::stdout(), ResetColor)?;
             }
         }
-        
+
         let age = server.last_update.elapsed().as_secs();
         if age > 5 {
             execute!(io::stdout(), SetForegroundColor(Color::DarkGrey))?;
             print!(" ({}s ago)", age);
             execute!(io::stdout(), ResetColor)?;
         }
-        
+
         println!();
-        
+
         // Graph line
         execute!(io::stdout(), cursor::MoveTo(2, row + 1))?;
         let graph = draw_graph(&server.history);
-        
+
         // Draw graph with colors
         for ch in graph.chars() {
             if ch != ' ' {
@@ -212,7 +212,7 @@ fn draw_ui(servers: &[ServerStatus]) -> io::Result<()> {
                 print!("·");
             }
         }
-        
+
         println!(" [{} min]", GRAPH_HISTORY_MINUTES);
     }
 
@@ -228,7 +228,7 @@ fn draw_ui(servers: &[ServerStatus]) -> io::Result<()> {
     execute!(io::stdout(), SetForegroundColor(Color::DarkRed))?;
     print!("○ Timeout (>500ms)");
     execute!(io::stdout(), ResetColor)?;
-    
+
     io::stdout().flush()?;
     Ok(())
 }
@@ -248,7 +248,7 @@ fn main() -> io::Result<()> {
 
     smol::block_on(async {
         terminal::enable_raw_mode()?;
-        
+
         let (sender, receiver) = channel::unbounded::<ServerStatus>();
         let mut server_statuses = Vec::new();
 
@@ -291,14 +291,18 @@ fn main() -> io::Result<()> {
 
             // Redraw UI
             draw_ui(&server_statuses)?;
-            
             Timer::after(Duration::from_millis(500)).await;
         }
 
         terminal::disable_raw_mode()?;
-        execute!(io::stdout(), terminal::Clear(ClearType::All), cursor::MoveTo(0, 0))?;
+        execute!(
+            io::stdout(),
+            terminal::Clear(ClearType::All),
+            cursor::MoveTo(0, 0)
+        )?;
         println!("Goodbye!");
-        
+
         Ok(())
     })
 }
+
